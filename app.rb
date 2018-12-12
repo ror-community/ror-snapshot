@@ -9,23 +9,40 @@ end
 # Work around rack protection referrer bug
 set :protection, :except => :json_csrf
 
-host = ENV["ELASTIC_SEARCH"].nil? ? "http://localhost:9200" : ENV["ELASTIC_SEARCH"]
 
-client = Elasticsearch::Client.new url: host
+set :host, ENV["ELASTIC_SEARCH"].nil? ? "http://localhost:9200" : ENV["ELASTIC_SEARCH"]
+
+set :client, Elasticsearch::Client.new, url: settings.host
+
+def search_all(start = 0, size = 20)
+  settings.client.search from: start, size: size
+end
+
+def search (query = nil, start = 0, size = 20)
+  settings.client.search q: query, from: start, size: size
+end
+
+def paginate (start, total, page)
+
+end
 
 get '/organizations' do
-  content_type :json
+  content_type "application/json"
+  query = nil
   default_size = 20
   results = {}
-  # return everything?
-  if params['query']
-    query = client.search q: params['query'], size: default_size
-    results["number of results"] = query["hits"]["total"]
-    results["time taken"] = query["took"]
-    results["hits"] = []
-    query["hits"]["hits"].each { |result|
-      results ["hits"] << result["_source"]
-    }
-    results.to_json
+  results["number of results"] = nil
+  results["time taken"] = nil
+  results["hits"] = []
+  if params.keys.count == 0
+    query = search_all
+  elsif params['query']
+    query = search(params['query'])
   end
+  results["number of results"] = query["hits"]["total"]
+  results["time taken"] = query["took"]
+  query["hits"]["hits"].each { |result|
+    results ["hits"] << result["_source"]
+  }
+  JSON.pretty_generate results
 end
