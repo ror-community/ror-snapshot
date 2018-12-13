@@ -23,6 +23,7 @@ GEM
       elasticsearch-transport (= 6.1.0)
     elasticsearch-api (6.1.0)
       multi_json
+    elasticsearch-dsl (0.1.6)
     elasticsearch-transport (6.1.0)
       faraday
       multi_json
@@ -114,6 +115,7 @@ DEPENDENCIES
   countries
   dotenv
   elasticsearch
+  elasticsearch-dsl
   json
   mechanize
   nokogiri (>= 1.8.4)
