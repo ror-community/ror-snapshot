@@ -18,11 +18,10 @@ set :client, Elasticsearch::Client.new, url: settings.host
 
 set :default_size, 20
 
-set :accepted_params, %w(query page filter query.name)
+set :accepted_params, %w(query page filter query.name query.names)
 
 set :filter_types, %w(location type)
 
-set :query_combinations, {:query => %w(query_string query), :query_name => {:match => {:name => ["query","operator"]}}}
 def search_all(start = 0, size = settings.default_size)
   settings.client.search from: start, size: size
 end
@@ -32,6 +31,7 @@ end
 #query.names looks at name, aliases, labels
 # look to see how to do a filter query
 # query term: {query: {match: {name: {query:"Bath Spa University",operator:"and"}}}}
+# create query strings by parameter
 def generate_query(options = {})
   q = search {
     query do
@@ -43,6 +43,12 @@ def generate_query(options = {})
         match :name do
           query options["query.name"]
           operator "and"
+        end
+      elsif options.key?("query.names")
+        multi_match do
+          query    options["query.names"]
+          operator 'and'
+          fields   %w[ name aliases acronyms labels.label ]
         end
       end
     end
@@ -56,12 +62,11 @@ def process (options = {})
   if options["page"]
     pg = options["page"].to_i
     if (pg.is_a? Integer and pg > 0)
-      msg = paginate(pg,options["query"])
+      msg = paginate(pg,query)
     else
       msg = {:error => "page parameter: #{options['page']} must be an Integer."}
     end
   else
-    binding.pry
     msg = find(query)
   end
   msg
