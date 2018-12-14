@@ -49,13 +49,24 @@ def multi_field_match(fields, term)
   end
 end
 
+def gen_filter_query(query,filter)
+  new_query = {}
+  filter = filter.split(",")
+  new_query[:query] = {:bool => {:must => query[:query]}}
+  filter_hsh = {}
+  filter_hsh[:filter] = []
+  filter.each { |f|
+    field,term = f.split(":")
+    filter_hsh[:filter] << {:match => {"#{field}" => term}}
+  }
+  filter_hsh[:filter] = filter.count == 1 ? filter_hsh[:filter][0] : filter_hsh[:filter]
+  new_query[:query][:bool].merge!(filter_hsh)
+  new_query
+end
 
 # meta program so that one can build query strings depending on parameter
 # query.name is only name
 #query.names looks at name, aliases, labels
-# look to see how to do a filter query
-# query term: {query: {match: {name: {query:"Bath Spa University",operator:"and"}}}}
-# create query strings by parameter
 def generate_query(options = {})
   filter = nil
   qt = nil
@@ -91,20 +102,7 @@ def process (options = {})
       msg = {:error => "page parameter: #{options['page']} must be an Integer."}
     end
   else
-    if options["filter"]
-      new_query = {}
-      filter = options["filter"].split(",")
-      new_query[:query] = {:bool => {:must => query[:query]}}
-      filter_hsh = {}
-      filter_hsh[:filter] = []
-      filter.each { |f|
-        field,term = f.split(":")
-        filter_hsh[:filter] << {:match => {"#{field}" => term}}
-      }
-      filter_hsh[:filter] = filter.count == 1 ? filter_hsh[:filter][0] : filter_hsh[:filter]
-      new_query[:query][:bool].merge!(filter_hsh)
-      query = new_query
-    end
+    query = gen_filter_query(query,options["filter"]) if options["filter"]
     msg = find(query)
   end
   msg
