@@ -22,7 +22,7 @@ set :accepted_params, %w(query page filter query.name query.names)
 
 set :filter_types, %w(location type)
 
-set :accepted_param_values, %w(location types)
+set :accepted_filter_param_values, %w(country.country_code types country.country_name)
 
 def search_all(start = 0, size = settings.default_size)
   settings.client.search from: start, size: size
@@ -65,8 +65,6 @@ def gen_filter_query(query,filter)
 end
 
 # meta program so that one can build query strings depending on parameter
-# query.name is only name
-#query.names looks at name, aliases, labels
 def generate_query(options = {})
   filter = nil
   qt = nil
@@ -76,7 +74,7 @@ def generate_query(options = {})
   q = search {
     query do
       if options.key?("query")
-          simple_query(options["query"])
+        simple_query(options["query"])
       elsif options.key?("query.name")
         match_field("name",options["query.name"])
       elsif options.key?("query.names")
@@ -121,23 +119,33 @@ def search_by_id (id)
 end
 
 def paginate (page, query = nil)
-    start = settings.default_size * (page - 1)
-    find(query, start)
+  start = settings.default_size * (page - 1)
+  find(query, start)
 end
 
 def check_params
-  bad_param = false
+  content_type "application/json"
+  bad_param_msg = {}
+  bad_param_msg[:illegal_parameter] = []
+  bad_param_msg[:illegal_parameter_values] = []
   params.keys.each { |k|
-    params.delete(k) unless settings.accepted_params.include?(k)
+    unless settings.accepted_params.include?(k)
+      bad_param_msg[:illegal_parameter] << k
+    end
   }
+  if params["filter"]
+    filter = params["filter"].split(",")
+    get_param_values = filter.map { |f| f.split(":")[0]}
+    get_param_values.map { |p|
+      unless settings.accepted_filter_param_values.include?(p)
+        bad_param_msg[:illegal_parameter_values] << p
+      end
+    }
+  end
+  bad_param_msg
 end
 
-
-
-get '/organizations' do
-  content_type "application/json"
-  check_params
-  msg = nil
+def process_results
   results = {}
   errors = []
   msg = process(params)
@@ -153,8 +161,24 @@ get '/organizations' do
       results ["hits"] << result["_source"]
     }
   end
-  info = errors.empty? ? results : errors
-  JSON.pretty_generate info
+  [results,errors]
+end
+
+get '/organizations' do
+  content_type "application/json"
+  bad_params = {}
+  bad_params = check_params
+  msg = nil
+  results = {}
+  errors = []
+  info = {}
+  if bad_params.values.flatten.empty?
+    results,errors = process_results
+    info = errors.empty? ? results : errors
+    JSON.pretty_generate info
+  else
+    JSON.pretty_generate bad_params
+  end
 end
 
 get '/organizations/:id' do
