@@ -25,6 +25,7 @@ set :accepted_filter_param_values, %w(country.country_code types country.country
 
 set :json_builder, Jbuilder.new
 
+set :id_prefix, "ror.org"
 def search_all(start = 0, size = settings.default_size)
   settings.client.search from: start, size: size
 end
@@ -150,6 +151,17 @@ def check_params
   bad_param_msg
 end
 
+def process_id
+  uri_pattern = /(.*?)\/(.*$)/
+  id = params["splat"][0]
+  uri_check = uri_pattern.match(id)
+  valid_id = nil
+  if (! uri_check.nil?) && (uri_check[1] == settings.id_prefix)
+    valid_id = id
+  end
+  valid_id
+end
+
 def process_results
   results = {}
   errors = []
@@ -186,8 +198,14 @@ get '/organizations' do
   end
 end
 
-get '/organizations/:id' do
+get '/organizations/*' do
+  valid_id = process_id
+  msg = {}
   content_type "application/json"
-  msg = search_by_id(params[:id])
+  if valid_id
+    msg = search_by_id(valid_id)
+  else
+    msg = {:error => "Expect id with the prefix ror.org or local identifier"}
+  end
   JSON.pretty_generate msg
 end
