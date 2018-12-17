@@ -3,7 +3,7 @@ ruby "2.4.4"
 
 gem 'json'
 gem 'elasticsearch'
-gem 'elasticsearch-dsl'
+gem 'jbuilder', '~> 2.7'
 gem 'mechanize'
 gem "nokogiri", ">= 1.8.4"
 gem 'countries'

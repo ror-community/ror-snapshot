@@ -1,8 +1,7 @@
 require 'sinatra'
 require 'json'
 require 'elasticsearch'
-require 'elasticsearch/dsl'
-include Elasticsearch::DSL
+require 'jbuilder'
 
 after do
   response.headers['Access-Control-Allow-Origin'] = '*'
@@ -24,44 +23,51 @@ set :filter_types, %w(location type)
 
 set :accepted_filter_param_values, %w(country.country_code types country.country_name)
 
+set :json_builder, Jbuilder.new
+
 def search_all(start = 0, size = settings.default_size)
   settings.client.search from: start, size: size
 end
 
 def simple_query(term)
-  query_string do
-    query term
+  settings.json_builder.query_string do
+    settings.json_builder.query term
   end
+
 end
 
 def match_field(field, term)
-  match field.to_sym do
-    query term
-    operator "and"
+  settings.json_builder.match do
+    settings.json_builder.set! field do
+      settings.json_builder.query term
+      settings.json_builder.operator "and"
+    end
   end
 end
 
 def multi_field_match(fields, term)
-  multi_match do
-    query    term
-    operator 'and'
-    fields   fields
+  settings.json_builder.multi_match do
+    settings.json_builder.query term
+    settings.json_builder.operator "and"
+    settings.json_builder.fields fields
   end
 end
 
+
 def gen_filter_query(query,filter)
-  new_query = {}
   filter = filter.split(",")
-  new_query[:query] = {:bool => {:must => query[:query]}}
+  new_query = {}
+  new_query[:query] = {:bool => {:must => query["query"]}}
   filter_hsh = {}
   filter_hsh[:filter] = []
   filter.each { |f|
     field,term = f.split(":")
     filter_hsh[:filter] << {:match => {"#{field}" => term}}
   }
-  filter_hsh[:filter] = filter.count == 1 ? filter_hsh[:filter][0] : filter_hsh[:filter]
   new_query[:query][:bool].merge!(filter_hsh)
+
   new_query
+
 end
 
 # meta program so that one can build query strings depending on parameter
@@ -71,19 +77,18 @@ def generate_query(options = {})
   if options["filter"]
     filter = options["filter"].split(",")
   end
-  q = search {
-    query do
-      if options.key?("query")
-        simple_query(options["query"])
-      elsif options.key?("query.name")
-        match_field("name",options["query.name"])
-      elsif options.key?("query.names")
-        fields = %w[ name aliases acronyms labels.label ]
-        multi_field_match(fields, options["query.names"])
+  q = settings.json_builder.search do
+        settings.json_builder.query do
+          if options.key?("query")
+            simple_query(options["query"])
+          elsif options.key?("query.name")
+            match_field("name",options["query.name"])
+          elsif options.key?("query.names")
+            fields = %w[ name aliases acronyms labels.label ]
+            multi_field_match(fields, options["query.names"])
+          end
+        end
       end
-    end
-  }
-  q.to_hash
 end
 
 
